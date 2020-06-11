@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import org.dpppt.android.sdk.DP3T;
+import org.dpppt.android.sdk.internal.backend.StatusCodeException;
 import org.dpppt.android.sdk.internal.logger.Logger;
 import org.dpppt.android.sdk.models.ExposeeAuthMethodAuthorization;
 
@@ -33,6 +34,9 @@ public class FakeWorker extends Worker {
 
 	private static final float SAMPLING_RATE = 0.2f;
 	private static final long FACTOR_DAY_MILLIS = 24 * 60 * 60 * 1000L;
+
+	public static final String INPUT_REQUEST_TIME_MILLIS = "INPUT_REQUEST_TIME_MILLIS";
+	public static final String INPUT_REPEATING_EXECUTION = "INPUT_REPEATING_EXECUTION";
 
 	public static void safeStartFakeWorker(Context context) {
 		startFakeWorker(context, ExistingWorkPolicy.KEEP);
@@ -66,24 +70,26 @@ public class FakeWorker extends Worker {
 	public ListenableWorker.Result doWork() {
 		Logger.d(TAG, "start");
 		try {
-			executeFakeRequest(getApplicationContext());
-			startFakeWorker(getApplicationContext(), ExistingWorkPolicy.APPEND);
-		} catch (IOException | ResponseError e) {
-			Logger.e(TAG, "failed", e);
+			long requestTimeMillis = getInputData().getLong(INPUT_REQUEST_TIME_MILLIS, System.currentTimeMillis());
+			boolean repeatingExecution = getInputData().getBoolean(INPUT_REPEATING_EXECUTION, true);
+			executeFakeRequest(getApplicationContext(), requestTimeMillis);
+			if (repeatingExecution) startFakeWorker(getApplicationContext(), ExistingWorkPolicy.APPEND);
+		} catch (IOException | ResponseError | StatusCodeException e) {
+			Logger.e(TAG, "Failed sending fake request", e);
 			return Result.retry();
 		}
-		Logger.d(TAG, "finished with success");
+		Logger.d(TAG, "Successfully sent fake request");
 		return Result.success();
 	}
 
-	private void executeFakeRequest(Context context)
-			throws IOException, ResponseError {
+	private void executeFakeRequest(Context context, long requestTimeMillis)
+			throws IOException, ResponseError, StatusCodeException {
 		AuthCodeRepository authCodeRepository = new AuthCodeRepository(context);
 		AuthenticationCodeResponseModel accessTokenResponse =
 				authCodeRepository.getAccessTokenSync(new AuthenticationCodeRequestModel(FAKE_AUTH_CODE, 1));
 		String accessToken = accessTokenResponse.getAccessToken();
 
-		DP3T.sendFakeInfectedRequest(context, new ExposeeAuthMethodAuthorization(getAuthorizationHeader(accessToken)));
+		DP3T.sendFakeInfectedRequest(context, new ExposeeAuthMethodAuthorization(getAuthorizationHeader(accessToken)), requestTimeMillis);
 	}
 
 	private String getAuthorizationHeader(String accessToken) {

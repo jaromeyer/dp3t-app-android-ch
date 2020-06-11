@@ -53,7 +53,7 @@ public class AuthCodeRepository {
 		Cache cache = new Cache(context.getCacheDir(), cacheSize);
 		okHttpBuilder.cache(cache);
 
-		okHttpBuilder.certificatePinner(CertificatePinning.getCertificatePinner());
+		//okHttpBuilder.certificatePinner(CertificatePinning.getCertificatePinner());
 		okHttpBuilder.addInterceptor(new UserAgentInterceptor(DP3T.getUserAgent()));
 
 		Retrofit retrofit = new Retrofit.Builder()
